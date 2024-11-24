@@ -4,26 +4,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sentiment and Stock Prediction Results</title>
+    <title>Stock Prediction Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 20px;
-            padding: 20px;
             background-color: #f9f9f9;
+            margin: 0;
+            padding: 0;
         }
 
         .container {
             max-width: 800px;
-            margin: 0 auto;
-            background: #ffffff;
+            margin: 30px auto;
+            background-color: #ffffff;
             padding: 20px;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
-        h1, h2 {
+        h1 {
+            text-align: center;
             color: #333;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            margin: 20px 0;
+            position: relative;
+            height: 400px;
+        }
+
+        .timeframe-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .timeframe-buttons button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        .timeframe-buttons button.active {
+            background-color: #0056b3;
+        }
+
+        .timeframe-buttons button:hover {
+            background-color: #0056b3;
         }
 
         table {
@@ -70,25 +104,6 @@
         .btn:hover {
             background-color: #0056b3;
         }
-
-        .highlight {
-            background-color: #f8f9fa;
-            padding: 10px;
-            border-left: 4px solid #007bff;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-
-        .highlight strong {
-            color: #007bff;
-        }
-
-        .error {
-            color: red;
-            font-weight: bold;
-            margin-top: 20px;
-            text-align: center;
-        }
     </style>
 </head>
 
@@ -98,7 +113,22 @@
             <div class="error">{{ error_message }}</div>
             <a class="btn" href="/">Go Back</a>
         {% else %}
-            <h1>Results for {{ stock_name }}</h1>
+            <h1>Results for {{ stock }}</h1>
+
+            <div class="timeframe-buttons">
+                <button data-period="1d" class="active">1D</button>
+                <button data-period="5d">5D</button>
+                <button data-period="1mo">1M</button>
+                <button data-period="3mo">3M</button>
+                <button data-period="6mo">6M</button>
+                <button data-period="1y">1Y</button>
+                <button data-period="5y">5Y</button>
+                <button data-period="max">Max</button>
+            </div>
+
+            <div class="chart-container">
+                <canvas id="stockChart"></canvas>
+            </div>
 
             <h2>News Titles and Sentiments</h2>
             <table>
@@ -117,19 +147,10 @@
                     {% endfor %}
                 </tbody>
             </table>
+            
 
             <h2>Sentiment Analysis Bar Graph</h2>
             <img src="data:image/png;base64,{{ sentiment_graph }}" alt="Sentiment Analysis Bar Graph">
-
-            <h2>Stock Prediction Results</h2>
-            <div class="highlight">
-                <p><strong>Days Ahead:</strong> {{ days_ahead }}</p>
-                <p><strong>Predicted High:</strong> {{ prediction[0] }}</p>
-                <p><strong>Predicted Low:</strong> {{ prediction[1] }}</p>
-            </div>
-
-            <h2>Predicted Stock Prices</h2>
-            <img src="data:image/png;base64,{{ prediction_graph }}" alt="Predicted Stock Prices">
 
             <h2>Historical vs Predicted Stock Prices</h2>
             <img src="data:image/png;base64,{{ combined_graph }}" alt="Historical vs Predicted Stock Prices">
@@ -137,6 +158,105 @@
             <a class="btn" href="/">Analyze Another Stock</a>
         {% endif %}
     </div>
+
+    <script>
+        const stockName = "{{ stock }}";
+
+        const ctx = document.getElementById('stockChart').getContext('2d');
+        let stockChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: `${stockName} Closing Prices`,
+                    data: [],
+                    backgroundColor: 'rgba(26, 188, 156, 0.2)',
+                    borderColor: 'rgba(26, 188, 156, 1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Date/Time',
+                            color: '#333'
+                        },
+                        ticks: {
+                            color: '#555'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Price (₹)',
+                            color: '#333'
+                        },
+                        ticks: {
+                            color: '#555'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#333'
+                        }
+                    }
+                }
+            }
+        });
+
+        async function fetchData(period) {
+            try {
+                const response = await fetch('/get_chart_data', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        stock: stockName,
+                        period: period
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    alert(errorData.error || 'Failed to fetch data');
+                    return;
+                }
+
+                const data = await response.json();
+                updateChart(data.labels, data.prices);
+            } catch (error) {
+                console.error('Error fetching chart data:', error);
+            }
+        }
+
+        function updateChart(labels, prices) {
+            stockChart.data.labels = labels;
+            stockChart.data.datasets[0].data = prices;
+            stockChart.update();
+        }
+
+        document.querySelectorAll('.timeframe-buttons button').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.timeframe-buttons button').forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+
+                const period = button.getAttribute('data-period');
+                fetchData(period);
+            });
+        });
+
+        fetchData('1d');
+    </script>
 </body>
 
 </html>

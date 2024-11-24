@@ -24,6 +24,7 @@
         h1 {
             text-align: center;
             color: #333;
+            margin-bottom: 20px;
         }
 
         form {
@@ -54,6 +55,7 @@
             border-radius: 4px;
             font-size: 16px;
             cursor: pointer;
+            transition: background-color 0.3s ease;
         }
 
         button:hover {
@@ -73,18 +75,19 @@
         <h1>Stock Prediction</h1>
         <form action="/predict" method="post">
             <label for="stock">Select Stock:</label>
-            <select name="stock" id="stock">
+            <select name="stock" id="stock" required>
+                <option value="" disabled selected>Select a stock</option>
                 {% for company in companies %}
                 <option value="{{ company }}">{{ company }}</option>
                 {% endfor %}
             </select>
 
             <label for="days_ahead">Days Ahead:</label>
-            <select name="days_ahead" id="days_ahead">
-                <option value="1">1</option>
-                <option value="7">7</option>
-                <option value="30">30</option>
-                <option value="365">365</option>
+            <select name="days_ahead" id="days_ahead" required>
+                <option value="1">1 Day</option>
+                <option value="7">1 Week</option>
+                <option value="30">1 Month</option>
+                <option value="365">1 Year</option>
             </select>
 
             <button type="submit">Predict</button>
